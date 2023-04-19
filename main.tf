@@ -22,7 +22,7 @@ resource "aws_instance" "nginx-server" {
   instance_type          = "t2.micro"
   key_name               = var.key_name
   vpc_security_group_ids = [aws_security_group.general-sg.id]
-  user_data              = file(user-data-nginx.tpl)
+  user_data              = file("user-data-nginx.tpl")
               
             
 
@@ -37,7 +37,7 @@ resource "aws_instance" "apache-server" {
   instance_type          = "t2.micro"
   key_name               = var.key_name
   vpc_security_group_ids = [aws_security_group.general-sg.id]
-  user_data              = file(user-data-apache.tpl)
+  user_data              = file("user-data-apache.tpl")
 
   tags = {
     "Name" = "apache-server"
@@ -129,108 +129,151 @@ resource "aws_security_group" "general-sg" {
   }]
 }
 # Add Autoscalling group to the Load balancers
-resource "aws_autoscaling_group" "lb-asg" {
-  name                      = "lb-asg"
-  min_size                  = 1
-  max_size                  = 3
-  desired_capacity          = 1
-  vpc_zone_identifier       = ["subnet-053a3b50133d15b07"]
-  health_check_type         = "ELB"
-  health_check_grace_period = 300
+# resource "aws_autoscaling_group" "lb-asg" {
+#   name                      = "lb-asg"
+#   min_size                  = 1
+#   max_size                  = 3
+#   desired_capacity          = 1
+#   vpc_zone_identifier       = ["subnet-053a3b50133d15b07"]
+#   health_check_type         = "ELB"
+#   health_check_grace_period = 300
+
+#   tag {
+#     key                 = "Name"
+#     value               = "lb-asg"
+#     propagate_at_launch = true
+#   }
+
+#   depends_on = [
+#     aws_lb.terraform-one,
+#   ]
+# }
+
+#add autoscalling group
+
+
+resource "aws_launch_template" "prod-temp" {
+  name_prefix   = "prod-template"
+  image_id      = "ami-0aa2b7722dc1b5612"
+  instance_type = "t2.micro"
+
+  network_interfaces {
+    associate_public_ip_address = true
+  }
+}
+
+resource "aws_autoscaling_group" "prod-asg" {
+  name                 = "prod-autoscaling-group"
+  launch_template {
+    id      = aws_launch_template.prod-temp.id
+    version = "$Latest"
+  }
+  min_size             = 1
+  max_size             = 3
+  desired_capacity     = 2
+  health_check_type    = "EC2"
+  vpc_zone_identifier  = ["subnet-053a3b50133d15b07", "subnet-0d3e5a5d367271aa1"]
+  target_group_arns = [aws_lb_target_group.terraform-one.arn]
 
   tag {
     key                 = "Name"
-    value               = "lb-asg"
+    value               = "server"
     propagate_at_launch = true
   }
-
   depends_on = [
     aws_lb.terraform-one,
   ]
 }
 
 
-
-
-#ygytty 
-
-
-
-# Create launch template
-resource "aws_launch_template" "example" {
-  name_prefix = "example"
-  image_id    = "ami-0123456789abcdef"
-  instance_type = "t2.micro"
+resource "aws_autoscaling_attachment" "auto-attach" {
+  autoscaling_group_name = aws_autoscaling_group.prod-asg.name
+  lb_target_group_arn   = aws_lb_target_group.terraform-one.arn
 }
 
-# Create ASG with ELBv2
-resource "aws_autoscaling_group" "example" {
-  name                      = "example"
-  vpc_zone_identifier       = ["subnet-12345678", "subnet-23456789"]
-  launch_template           = {
-    id      = aws_launch_template.example.id
-    version = "$Latest"
-  }
-  min_size                  = 1
-  max_size                  = 5
-  desired_capacity          = 2
-  mixed_instances_policy {
-    launch_template {
-      launch_template_specification {
-        launch_template_id      = aws_launch_template.example.id
-        version                 = "$Latest"
-        override                = []
-      }
-      overrides {
-        instance_type           = "c5.large"
-      }
-      overrides {
-        instance_type           = "c5.xlarge"
-        weighted_capacity       = 4
-      }
-    }
-    instances_distribution {
-      on_demand_allocation_strategy = "prioritized"
-      on_demand_base_capacity       = 1
-      spot_allocation_strategy      = "lowest-price"
-      spot_instance_pools            = 2
-      spot_max_price                 = "0.05"
-    }
-  }
-  tag {
-    key                 = "Name"
-    value               = "example"
-    propagate_at_launch = true
-  }
-}
 
-# Create ELBv2 listener and target group
-resource "aws_lb" "example" {
-  name               = "example"
-  load_balancer_type = "application"
-  subnets            = ["subnet-12345678", "subnet-23456789"]
 
-  listener {
-    port = 80
-    default_action {
-      target_group_arn = aws_lb_target_group.example.arn
-      type             = "forward"
-    }
-  }
-}
 
-resource "aws_lb_target_group" "example" {
-  name     = "example"
-  port     = 80
-  protocol = "HTTP"
 
-  health_check {
-    path = "/"
-  }
-}
+# #ygytty 
 
-# Attach ASG to target group
-resource "aws_autoscaling_attachment" "example" {
-  autoscaling_group_name = aws_autoscaling_group.example.name
-  alb_target_group_arn   = aws_lb_target_group.example.arn
-}
+
+
+# # Create launch template
+# resource "aws_launch_template" "example" {
+#   name_prefix = "example"
+#   image_id    = "ami-0123456789abcdef"
+#   instance_type = "t2.micro"
+# }
+
+# # Create ASG with ELBv2
+# resource "aws_autoscaling_group" "example" {
+#   name                      = "example"
+#   vpc_zone_identifier       = ["subnet-12345678", "subnet-23456789"]
+#   launch_template           = {
+#     id      = aws_launch_template.example.id
+#     version = "$Latest"
+#   }
+#   min_size                  = 1
+#   max_size                  = 5
+#   desired_capacity          = 2
+#   mixed_instances_policy {
+#     launch_template {
+#       launch_template_specification {
+#         launch_template_id      = aws_launch_template.example.id
+#         version                 = "$Latest"
+#         override                = []
+#       }
+#       overrides {
+#         instance_type           = "c5.large"
+#       }
+#       overrides {
+#         instance_type           = "c5.xlarge"
+#         weighted_capacity       = 4
+#       }
+#     }
+#     instances_distribution {
+#       on_demand_allocation_strategy = "prioritized"
+#       on_demand_base_capacity       = 1
+#       spot_allocation_strategy      = "lowest-price"
+#       spot_instance_pools            = 2
+#       spot_max_price                 = "0.05"
+#     }
+#   }
+#   tag {
+#     key                 = "Name"
+#     value               = "example"
+#     propagate_at_launch = true
+#   }
+# }
+
+# # Create ELBv2 listener and target group
+# resource "aws_lb" "example" {
+#   name               = "example"
+#   load_balancer_type = "application"
+#   subnets            = ["subnet-12345678", "subnet-23456789"]
+
+#   listener {
+#     port = 80
+#     default_action {
+#       target_group_arn = aws_lb_target_group.example.arn
+#       type             = "forward"
+#     }
+#   }
+# }
+
+# resource "aws_lb_target_group" "example" {
+#   name     = "example"
+#   port     = 80
+#   protocol = "HTTP"
+
+#   health_check {
+#     path = "/"
+#   }
+# }
+
+# # Attach ASG to target group
+# resource "aws_autoscaling_attachment" "example" {
+#   autoscaling_group_name = aws_autoscaling_group.example.name
+#   alb_target_group_arn   = aws_lb_target_group.example.arn
+# }
