@@ -1,7 +1,9 @@
+Change into the project directory:![Screenshot from 2023-04-19 15-35-06](https://user-images.githubusercontent.com/70139300/233110820-b9d3c0f4-afa6-44a7-818a-e0f9b2b0eb1f.png)
+
+
+
 Clone this repository:
 git clone https://github.com/devbarham/Terraform1.git
-
-Change into the project directory:
 cd terraform-one
 
 Create a terraform.tfvars file to define your variables:
@@ -20,9 +22,6 @@ terraform apply --var-file="terraform.tfvars"
 When you're finished with the resources, destroy them:
 terraform destroy --var-file="terraform.tfvars"
 
-
-
-![Screenshot](./screenshots/Screenshot from 2023-04-19 15-35-06.png.png)
 
 Variables
 The following variables can be defined in your terraform.tfvars file:
