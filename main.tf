@@ -156,6 +156,7 @@ resource "aws_launch_template" "prod-temp" {
   name_prefix   = "prod-template"
   image_id      = "ami-0aa2b7722dc1b5612"
   instance_type = "t2.micro"
+  user_data = base64encode("user-data-apache.tpl")
 
   network_interfaces {
     associate_public_ip_address = true
@@ -171,7 +172,7 @@ resource "aws_autoscaling_group" "prod-asg" {
   min_size             = 1
   max_size             = 3
   desired_capacity     = 2
-  health_check_type    = "EC2"
+  health_check_type    = "ELB"
   vpc_zone_identifier  = ["subnet-053a3b50133d15b07", "subnet-0d3e5a5d367271aa1"]
   target_group_arns = [aws_lb_target_group.terraform-one.arn]
 
@@ -186,10 +187,10 @@ resource "aws_autoscaling_group" "prod-asg" {
 }
 
 
-resource "aws_autoscaling_attachment" "auto-attach" {
-  autoscaling_group_name = aws_autoscaling_group.prod-asg.name
-  lb_target_group_arn   = aws_lb_target_group.terraform-one.arn
-}
+# resource "aws_autoscaling_attachment" "auto-attach" {
+#   autoscaling_group_name = aws_autoscaling_group.prod-asg.name
+#   lb_target_group_arn   = aws_lb_target_group.terraform-one.arn
+# }
 
 
 
