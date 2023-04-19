@@ -1,0 +1,170 @@
+# name: Terraform Deployment
+
+# on:
+#   push:
+#     branches:
+#       - main
+#       - feature/*
+
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout Code
+#         uses: actions/checkout@v2
+
+#       - name: Setup Terraform
+#         uses: hashicorp/setup-terraform@v1
+#         with:
+#           terraform_version: 1.0.9
+
+#       - name: Terraform Init and Plan
+#         if: github.ref == 'refs/heads/feature/*'
+#         run: |
+#           cd terraform
+#           terraform init
+#           terraform plan -out=terraform.tfplan
+
+#       - name: Terraform Apply
+#         if: github.ref == 'refs/heads/main'
+#         env:
+#           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#         run: |
+#           cd terraform
+#           terraform apply -auto-approve
+
+#       - name: Terraform Destroy
+#         if: github.ref == 'refs/heads/feature/*'
+#         env:
+#           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#         run: |
+#           cd terraform
+#           terraform destroy -auto-approve
+
+#       - name: Terraform Lint
+#         uses: terraform-linters/setup-terraform-linters@v0.11.1
+#         run: |
+#           cd terraform
+#           tflint
+
+
+name: Terraform Deployment
+
+on:
+  push:
+    branches:
+      - Branch-A
+      - Branch-B
+  pull_request:
+    branches:
+      - main
+      - Branch-B
+
+env:
+  ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+    - name: Terraform Lint
+      uses: eerkunt/terraform-validator-action@v2
+      with:
+        directory: ./
+        terraform_version: 1.0.0
+
+  plan:
+    needs: lint
+    if: github.ref == 'refs/heads/Branch-A'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        terraform_version: 1.0.0
+    - name: Terraform Init
+      run: terraform init
+    - name: Terraform Plan
+      run: terraform plan
+
+  pull-request-to-main:
+    needs: plan
+    if: github.ref == 'refs/heads/Branch-A'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v3.7.0
+      with:
+        token: ${{ secrets.TOKEN }}
+        commit-message: "Automated Pull Request from Branch-A"
+        branch: main
+        title: "Automated Pull Request from Branch-A"
+        body: "Automated Pull Request from Branch-A"
+        base: main
+
+  apply:
+    needs: pull-request-to-main
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        terraform_version: 1.0.0
+    - name: Terraform Apply
+      run: terraform apply -auto-approve
+
+  pull-request-to-branch-b:
+    needs: apply
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v3.7.0
+      with:
+        token: ${{ secrets.TOKEN }}
+        commit-message: "Automated Pull Request from main"
+        branch: Branch-B
+        title: "Automated Pull Request from main"
+        body: "Automated Pull Request from main"
+        base: Branch-B
+
+  destroy:
+    needs: pull-request-to-branch-b
+    if: github.ref == 'refs/heads/Branch-B'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        terraform_version: 1.0.0
+    - name: Terraform Destroy
+      run: terraform destroy -auto-approve
